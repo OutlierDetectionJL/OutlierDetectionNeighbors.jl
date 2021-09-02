@@ -3,11 +3,24 @@ uuid = "51249a0a-cb36-4849-8e04-30c7f8d311bb"
 authors = ["David Muhr <muhrdavid@gmail.com> and contributors"]
 version = "0.1.0"
 
+[deps]
+Combinatorics = "861a8166-3701-5b0c-9a16-15d98fcdc6aa"
+Distances = "b4f34e82-e78d-54a5-968a-f98e89d6e8f7"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+NearestNeighbors = "b8a86587-4115-5ab1-83bc-aa920d37bbce"
+OutlierDetectionInterface = "1722ece6-f894-4ffc-b6be-6ca1174e2011"
+Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
+
 [compat]
 julia = "1"
+Combinatorics = "1.0"
+Distances = "0.10"
+OutlierDetectionInterface = "0.1"
+NearestNeighbors = "0.4"
 
 [extras]
+OutlierDetectionTest = "66620973-d34b-445b-a614-4040704cad69"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Test"]
+test = ["Test", "OutlierDetectionTest"]
