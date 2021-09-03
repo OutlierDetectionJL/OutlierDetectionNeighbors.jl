@@ -37,7 +37,7 @@ data.
 [2] Li, Xiaojie; Lv, Jian Cheng; Cheng, Dongdong (2015): Angle-Based Outlier Detection Algorithm with More Stable
 Relationships.
 """
-OD.@detector_model mutable struct ABODDetector <: UnsupervisedDetector
+OD.@detector mutable struct ABODDetector <: UnsupervisedDetector
     k::Integer = 5::(_ > 0)
     metric::DI.Metric = DI.Euclidean()
     algorithm::Symbol = :kdtree::(_ in (:kdtree, :balltree))
@@ -47,14 +47,14 @@ OD.@detector_model mutable struct ABODDetector <: UnsupervisedDetector
     enhanced::Bool = false
 end
 
-struct ABODModel <: Model
+struct ABODModel <: DetectorModel
     # We have to store the tree to efficiently retrieve the indices to the nearest neighbors. Additionally, we have to
     # store the raw training data `X` for later angle calculations.
     X::AbstractArray
     tree::NN.NNTree
 end
 
-function OD.fit(detector::ABODDetector, X::Data)::Tuple{Model, Scores}
+function OD.fit(detector::ABODDetector, X::Data;)::Tuple{Model, Scores}
     # use tree to calculate distances
     tree = buildTree(X, detector.metric, detector.algorithm, detector.leafsize, detector.reorder)
     idxs, _ = knn_others(tree, X, detector.k)

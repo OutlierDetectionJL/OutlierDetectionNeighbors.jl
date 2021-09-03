@@ -23,7 +23,7 @@ References
 [1] Tang, Jian; Chen, Zhixiang; Fu, Ada Wai-Chee; Cheung, David Wai-Lok (2002): Enhancing Effectiveness of Outlier
 Detections for Low Density Patterns.
 """
-OD.@detector_model mutable struct COFDetector <: UnsupervisedDetector
+OD.@detector mutable struct COFDetector <: UnsupervisedDetector
     k::Integer = 5::(_ > 0)
     metric::DI.Metric = DI.Euclidean()
     algorithm::Symbol = :kdtree::(_ in (:kdtree, :balltree))
@@ -32,7 +32,7 @@ OD.@detector_model mutable struct COFDetector <: UnsupervisedDetector
     parallel::Bool = false
 end
 
-struct COFModel <: Model
+struct COFModel <: DetectorModel
     # An efficient COF prediction requires us to store the full pairwise distance matrix of the training examples in
     # addition to the learned tree as well as the ACDs of the training examples.
     tree::NN.NNTree

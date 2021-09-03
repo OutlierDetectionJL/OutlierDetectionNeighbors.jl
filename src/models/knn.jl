@@ -31,7 +31,7 @@ Sets.
 
 [2] Angiulli, Fabrizio; Pizzuti, Clara (2002): Fast Outlier Detection in High Dimensional Spaces.
 """
-OD.@detector_model mutable struct KNNDetector <: UnsupervisedDetector
+OD.@detector mutable struct KNNDetector <: UnsupervisedDetector
     k::Integer = 5::(_ > 0)
     metric::DI.Metric = DI.Euclidean()
     algorithm::Symbol = :kdtree::(_ in (:kdtree, :balltree))
@@ -41,7 +41,7 @@ OD.@detector_model mutable struct KNNDetector <: UnsupervisedDetector
     reduction::Symbol = :maximum::(_ in (:maximum, :median, :mean))
 end
 
-struct KNNModel <: Model
+struct KNNModel <: DetectorModel
     tree::NN.NNTree
 end
 

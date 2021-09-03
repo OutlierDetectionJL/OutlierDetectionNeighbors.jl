@@ -24,7 +24,7 @@ References
 ----------
 [1] Knorr, Edwin M.; Ng, Raymond T. (1998): Algorithms for Mining Distance-Based Outliers in Large Datasets.
 """
-OD.@detector_model mutable struct DNNDetector <: UnsupervisedDetector
+OD.@detector mutable struct DNNDetector <: UnsupervisedDetector
     metric::DI.Metric = DI.Euclidean()
     algorithm::Symbol = :kdtree::(_ in (:kdtree, :balltree))
     leafsize::Integer = 10::(_ ≥ 0)
@@ -33,7 +33,7 @@ OD.@detector_model mutable struct DNNDetector <: UnsupervisedDetector
     d::Real = 0::(_ > 0) # warns if `d` is not set
 end
 
-struct DNNModel <: Model
+struct DNNModel <: DetectorModel
     tree::NN.NNTree
 end
 

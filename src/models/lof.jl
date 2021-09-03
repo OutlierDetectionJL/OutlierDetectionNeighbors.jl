@@ -26,7 +26,7 @@ References
 [1] Breunig, Markus M.; Kriegel, Hans-Peter; Ng, Raymond T.; Sander, Jörg (2000): LOF: Identifying Density-Based Local
 Outliers.
 """
-OD.@detector_model mutable struct LOFDetector <: UnsupervisedDetector
+OD.@detector mutable struct LOFDetector <: UnsupervisedDetector
     k::Integer = 5::(_ > 0)
     metric::DI.Metric = DI.Euclidean()
     algorithm::Symbol = :kdtree::(_ in (:kdtree, :balltree))
@@ -35,7 +35,7 @@ OD.@detector_model mutable struct LOFDetector <: UnsupervisedDetector
     parallel::Bool = false
 end
 
-struct LOFModel <: Model
+struct LOFModel <: DetectorModel
     # For efficient prediction, we need to store the learned tree, the distances of each training sample to its
     # k-nearest neighbors, as well as the training lrds.
     tree::NN.NNTree
