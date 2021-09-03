@@ -40,7 +40,7 @@ struct COFModel <: DetectorModel
     acds::AbstractVector
 end
 
-function OD.fit(detector::COFDetector, X::Data)::Tuple{Model, Scores}
+function OD.fit(detector::COFDetector, X::Data)::Fit
     # calculate pairwise distances in addition to building the tree; we could remove this once NearestNeighbors.jl
     # exports something like `allpairs`
     pdists = DI.pairwise(detector.metric, X, dims=2)

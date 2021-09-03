@@ -43,7 +43,7 @@ struct LOFModel <: DetectorModel
     lrds::AbstractVector
 end
 
-function OD.fit(detector::LOFDetector, X::Data)::Tuple{Model, Scores}
+function OD.fit(detector::LOFDetector, X::Data)::Fit
     # create the specified tree
     tree = buildTree(X, detector.metric, detector.algorithm, detector.leafsize, detector.reorder)
 

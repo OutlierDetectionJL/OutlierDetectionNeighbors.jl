@@ -45,7 +45,7 @@ struct KNNModel <: DetectorModel
     tree::NN.NNTree
 end
 
-function OD.fit(detector::KNNDetector, X::Data)::Tuple{Model, Scores}
+function OD.fit(detector::KNNDetector, X::Data)::Fit
     # create the specified tree
     tree = buildTree(X, detector.metric, detector.algorithm, detector.leafsize, detector.reorder)
 
