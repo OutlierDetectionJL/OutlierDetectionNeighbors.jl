@@ -54,7 +54,7 @@ struct ABODModel <: DetectorModel
     tree::NN.NNTree
 end
 
-function OD.fit(detector::ABODDetector, X::Data;)::Fit
+function OD.fit(detector::ABODDetector, X::Data; verbosity=0)::Fit
     # use tree to calculate distances
     tree = buildTree(X, detector.metric, detector.algorithm, detector.leafsize, detector.reorder)
     idxs, _ = knn_others(tree, X, detector.k)

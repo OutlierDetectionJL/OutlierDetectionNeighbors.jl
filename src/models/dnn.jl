@@ -37,7 +37,7 @@ struct DNNModel <: DetectorModel
     tree::NN.NNTree
 end
 
-function OD.fit(detector::DNNDetector, X::Data)::Fit
+function OD.fit(detector::DNNDetector, X::Data; verbosity=0)::Fit
     # create the specified tree
     tree = buildTree(X, detector.metric, detector.algorithm, detector.leafsize, detector.reorder)
 
