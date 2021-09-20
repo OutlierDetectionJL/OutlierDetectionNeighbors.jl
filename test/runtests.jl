@@ -1,6 +1,9 @@
 using OutlierDetectionNeighbors
 using OutlierDetectionTest
 
+# Test the metadata of all exported detectors
+test_meta.(eval.(OutlierDetectionNeighbors.MODELS))
+
 data = TestData()
 run_test(detector) = test_detector(detector, data)
 
