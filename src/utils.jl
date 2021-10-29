@@ -66,9 +66,7 @@ function dnn_parallel(tree::NN.NNTree, X::AbstractArray, d::Real, sort::Bool = f
     scores
 end
 
-"""    knn_others
-
-Calculate the k-nearest neighbors without including the own included during previous tree construction."""
+# Calculate the k-nearest neighbors with ignoring the own point in the tree.
 function knn_others(tree::NN.NNTree, X::AbstractArray, k::Integer)::Tuple{AbstractVector, AbstractVector}
     idxs, dists = NN.knn(tree, X, k + 1, true) # we ignore the distance to the 'self' point, important to sort!
     ignore_self = vecvec -> map(vec -> vec[2:end], vecvec)
