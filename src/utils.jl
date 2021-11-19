@@ -11,6 +11,11 @@ Therefore a KDTree only works with axis aligned metrics which are: Euclidean, Ch
 A *brutetree* linearly searches all points in a brute force fashion and works with any Metric. A *balltree*
 recursively splits points into groups bounded by hyper-spheres and works with any Metric.
 
+    static::Union{Bool, Symbol}
+One of `(true, false, :auto)`. Whether the input data for fitting and transform should be statically or dynamically
+allocated. If `true`, the data is statically allocated. If `false`, the data is dynamically allocated. If `:auto`,
+the data is dynamically allocated if the product of all dimensions except the last is greater than 100.
+
     leafsize::Int
 Determines at what number of points to stop splitting the tree further. There is a trade-off between traversing the
 tree and having to evaluate the metric function for increasing number of points.
@@ -72,3 +77,10 @@ function knn_others(tree::NN.NNTree, X::AbstractArray, k::Integer)::Tuple{Abstra
     ignore_self = vecvec -> map(vec -> vec[2:end], vecvec)
     ignore_self(idxs), ignore_self(dists)
 end
+
+# The NN package automatically converts matrices to a vector of points (static vectors) for improved performance
+# this results in very bad performance for high-dimensional matrices (e.g. d > 100). 
+dynamic_view(X::Data) = [NN.SizedVector{length(v)}(v) for v in eachslice(X; dims=ndims(X))]
+auto_view(X::Data) = prod(size(X)[1:end-1]) > 100 ? dynamic_view(X) : X
+prepare_data(X::Data, static::Union{Bool, Symbol}) = static === :auto ? auto_view(X) :
+                                                     static === false ? dynamic_view(X) : X

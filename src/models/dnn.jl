@@ -27,6 +27,7 @@ References
 OD.@detector mutable struct DNNDetector <: UnsupervisedDetector
     metric::DI.Metric = DI.Euclidean()
     algorithm::Symbol = :kdtree::(_ in (:kdtree, :balltree))
+    static::Union{Bool,Symbol} = :auto::(_ in (true, false, :auto))
     leafsize::Integer = 10::(_ ≥ 0)
     reorder::Bool = true
     parallel::Bool = false
@@ -38,6 +39,8 @@ struct DNNModel <: DetectorModel
 end
 
 function OD.fit(detector::DNNDetector, X::Data; verbosity)::Fit
+    X = prepare_data(X, detector.static)
+
     # create the specified tree
     tree = buildTree(X, detector.metric, detector.algorithm, detector.leafsize, detector.reorder)
 
@@ -47,6 +50,8 @@ function OD.fit(detector::DNNDetector, X::Data; verbosity)::Fit
 end
 
 function OD.transform(detector::DNNDetector, model::DNNModel, X::Data)::Scores
+    X = prepare_data(X, detector.static)
+
     if detector.parallel
         return dnn_parallel(model.tree, X, detector.d)
     else

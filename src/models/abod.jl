@@ -6,6 +6,7 @@ using Statistics:var
     ABODDetector(k = 5,
                  metric = Euclidean(),
                  algorithm = :kdtree,
+                 static = :auto,
                  leafsize = 10,
                  reorder = true,
                  parallel = false,
@@ -41,6 +42,7 @@ OD.@detector mutable struct ABODDetector <: UnsupervisedDetector
     k::Integer = 5::(_ > 0)
     metric::DI.Metric = DI.Euclidean()
     algorithm::Symbol = :kdtree::(_ in (:kdtree, :balltree))
+    static::Union{Bool,Symbol} = :auto::(_ in (true, false, :auto))
     leafsize::Integer = 10::(_ ≥ 0)
     reorder::Bool = true
     parallel::Bool = false
@@ -55,20 +57,23 @@ struct ABODModel <: DetectorModel
 end
 
 function OD.fit(detector::ABODDetector, X::Data; verbosity)::Fit
+    # TODO: We could use the prepared data in the score calculation as well
+    X_prep = prepare_data(X, detector.static)
     # use tree to calculate distances
-    tree = buildTree(X, detector.metric, detector.algorithm, detector.leafsize, detector.reorder)
-    idxs, _ = knn_others(tree, X, detector.k)
+    tree = buildTree(X_prep, detector.metric, detector.algorithm, detector.leafsize, detector.reorder)
+    idxs, _ = knn_others(tree, X_prep, detector.k)
     scores = detector.enhanced ? _eabod(X, X, idxs, detector.k) : _abod(X, X, idxs, detector.k)
     return ABODModel(X, tree), scores
 end
 
 function OD.transform(detector::ABODDetector, model::ABODModel, X::Data)::Scores
+    X_prep = prepare_data(X, detector.static)
     # TODO: We could also paralellize the abod score calculation.
     if detector.parallel
-        idxs, _ = knn_parallel(model.tree, X, detector.k)
+        idxs, _ = knn_parallel(model.tree, X_prep, detector.k)
         return detector.enhanced ? _eabod(X, model.X, idxs, detector.k) : _abod(X, model.X, idxs, detector.k)
     else
-        idxs, _ = NN.knn(model.tree, X, detector.k)
+        idxs, _ = NN.knn(model.tree, X_prep, detector.k)
         return detector.enhanced ? _eabod(X, model.X, idxs, detector.k) : _abod(X, model.X, idxs, detector.k)
     end
 end

@@ -27,6 +27,7 @@ OD.@detector mutable struct COFDetector <: UnsupervisedDetector
     k::Integer = 5::(_ > 0)
     metric::DI.Metric = DI.Euclidean()
     algorithm::Symbol = :kdtree::(_ in (:kdtree, :balltree))
+    static::Union{Bool,Symbol} = :auto::(_ in (true, false, :auto))
     leafsize::Integer = 10::(_ ≥ 0)
     reorder::Bool = true
     parallel::Bool = false
@@ -41,21 +42,25 @@ struct COFModel <: DetectorModel
 end
 
 function OD.fit(detector::COFDetector, X::Data; verbosity)::Fit
-    # calculate pairwise distances in addition to building the tree; we could remove this once NearestNeighbors.jl
-    # exports something like `allpairs`
+    X_prep = prepare_data(X, detector.static)
+
+    # calculate pairwise distances in addition to building the tree;
+    # TODO: we could remove this once NearestNeighbors.jl exports something like `allpairs`
     pdists = DI.pairwise(detector.metric, X, dims=2)
 
     # use tree to calculate distances
-    tree = buildTree(X, detector.metric, detector.algorithm, detector.leafsize, detector.reorder)
+    tree = buildTree(X_prep, detector.metric, detector.algorithm, detector.leafsize, detector.reorder)
 
     # We need k + 1 neighbors to calculate the chaining distance and have to make sure the indices are sorted 
-    idxs, _ = knn_others(tree, X, detector.k + 1)
+    idxs, _ = knn_others(tree, X_prep, detector.k + 1)
     acds = _calc_acds(idxs, pdists, detector.k)
     scores = _cof(idxs, acds, detector.k)
     return COFModel(tree, pdists, acds), scores
 end
 
 function OD.transform(detector::COFDetector, model::COFModel, X::Data)::Scores
+    X = prepare_data(X, detector.static)
+
     if detector.parallel
         idxs, _ = knn_parallel(model.tree, X, detector.k + 1, true)
         return _cof(idxs, model.pdists, model.acds, detector.k)
