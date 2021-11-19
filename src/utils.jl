@@ -29,12 +29,13 @@ significant impact on performance and is by default set to true.
 Parallelize `score` and `predict` using all threads available. The number of threads can be set with the
 `JULIA_NUM_THREADS` environment variable. Note: `fit` is not parallel."""
 
-function buildTree(X::AbstractArray, metric::DI.Metric, algorithm::Symbol, leafsize::Int, reorder::Bool)::NN.NNTree
-    if algorithm == :kdtree
-        return NN.KDTree(X, metric; leafsize, reorder)
-    elseif algorithm == :balltree
-        return NN.BallTree(X, metric; leafsize, reorder)
-    end
+# for some reason providing this as a function is massively slowing down compilation
+macro tree(detector, X)
+    esc(quote
+        $detector.algorithm === :kdtree ?
+            NN.KDTree($X, $detector.metric; $detector.leafsize, $detector.reorder) :
+            NN.BallTree($X, $detector.metric; $detector.leafsize, $detector.reorder)
+    end)
 end
 
 function knn_parallel(tree::NN.NNTree, X::AbstractArray, k::Int,

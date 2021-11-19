@@ -42,7 +42,7 @@ function OD.fit(detector::DNNDetector, X::Data; verbosity)::Fit
     X = prepare_data(X, detector.static)
 
     # create the specified tree
-    tree = buildTree(X, detector.metric, detector.algorithm, detector.leafsize, detector.reorder)
+    tree = @tree detector X
 
     # use tree to calculate distances
     scores = dnn_others(NN.inrange(tree, X, detector.d))

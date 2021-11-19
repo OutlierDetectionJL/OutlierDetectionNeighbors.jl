@@ -60,7 +60,7 @@ function OD.fit(detector::ABODDetector, X::Data; verbosity)::Fit
     # TODO: We could use the prepared data in the score calculation as well
     X_prep = prepare_data(X, detector.static)
     # use tree to calculate distances
-    tree = buildTree(X_prep, detector.metric, detector.algorithm, detector.leafsize, detector.reorder)
+    tree = @tree detector X_prep
     idxs, _ = knn_others(tree, X_prep, detector.k)
     scores = detector.enhanced ? _eabod(X, X, idxs, detector.k) : _abod(X, X, idxs, detector.k)
     return ABODModel(X, tree), scores

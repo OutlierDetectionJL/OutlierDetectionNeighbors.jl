@@ -50,7 +50,7 @@ function OD.fit(detector::KNNDetector, X::Data; verbosity)::Fit
     X = prepare_data(X, detector.static)
 
     # create the specified tree
-    tree = buildTree(X, detector.metric, detector.algorithm, detector.leafsize, detector.reorder)
+    tree = @tree detector X
 
     # use tree to calculate distances
     _, dists = knn_others(tree, X, detector.k)

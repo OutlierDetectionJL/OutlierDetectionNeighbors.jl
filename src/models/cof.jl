@@ -49,7 +49,7 @@ function OD.fit(detector::COFDetector, X::Data; verbosity)::Fit
     pdists = DI.pairwise(detector.metric, X, dims=2)
 
     # use tree to calculate distances
-    tree = buildTree(X_prep, detector.metric, detector.algorithm, detector.leafsize, detector.reorder)
+    tree = @tree detector X_prep
 
     # We need k + 1 neighbors to calculate the chaining distance and have to make sure the indices are sorted 
     idxs, _ = knn_others(tree, X_prep, detector.k + 1)
