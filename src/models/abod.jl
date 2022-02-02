@@ -1,6 +1,6 @@
-using Combinatorics:combinations
+using Combinatorics: combinations
 using LinearAlgebra: dot, norm
-using Statistics:var
+using Statistics: var
 
 """
     ABODDetector(k = 5,
@@ -39,9 +39,10 @@ data.
 Relationships.
 """
 OD.@detector mutable struct ABODDetector <: UnsupervisedDetector
-    k::Integer = 5::(_ > 0)
+    # Note: the minimum k is 3. The 2 nearest neighbors yields one angle, which implies zero variance everywhere.
+    k::Integer = 5::(_ > 2)
     metric::DI.Metric = DI.Euclidean()
-    algorithm::Symbol = :kdtree::(_ in (:kdtree, :balltree))
+    algorithm::Symbol = :kdtree::(_ in (:kdtree, :balltree, :brutetree))
     static::Union{Bool,Symbol} = :auto::(_ in (true, false, :auto))
     leafsize::Integer = 10::(_ ≥ 0)
     reorder::Bool = true
@@ -57,25 +58,26 @@ struct ABODModel <: DetectorModel
 end
 
 function OD.fit(detector::ABODDetector, X::Data; verbosity)::Fit
-    # TODO: We could use the prepared data in the score calculation as well
-    X_prep = prepare_data(X, detector.static)
+    Xprep = prepare_data(X, detector.static)
+
+    # create the specified tree
+    tree = @tree detector Xprep
+
     # use tree to calculate distances
-    tree = @tree detector X_prep
-    idxs, _ = knn_others(tree, X_prep, detector.k)
+    idxs, _ = detector.parallel ?
+              knn_parallel(tree, Xprep, detector.k, true) :
+              knn_sequential(tree, Xprep, detector.k, true)
+
     scores = detector.enhanced ? _eabod(X, X, idxs, detector.k) : _abod(X, X, idxs, detector.k)
     return ABODModel(X, tree), scores
 end
 
 function OD.transform(detector::ABODDetector, model::ABODModel, X::Data)::Scores
-    X_prep = prepare_data(X, detector.static)
-    # TODO: We could also paralellize the abod score calculation.
-    if detector.parallel
-        idxs, _ = knn_parallel(model.tree, X_prep, detector.k)
-        return detector.enhanced ? _eabod(X, model.X, idxs, detector.k) : _abod(X, model.X, idxs, detector.k)
-    else
-        idxs, _ = NN.knn(model.tree, X_prep, detector.k)
-        return detector.enhanced ? _eabod(X, model.X, idxs, detector.k) : _abod(X, model.X, idxs, detector.k)
-    end
+    Xprep = prepare_data(X, detector.static)
+    idxs, _ = detector.parallel ?
+              knn_parallel(model.tree, Xprep, detector.k) :
+              knn_sequential(model.tree, Xprep, detector.k)
+    return detector.enhanced ? _eabod(X, model.X, idxs, detector.k) : _abod(X, model.X, idxs, detector.k)
 end
 
 function _abod(X::AbstractArray, Xtrain::AbstractArray, idxs::AbstractVector, k::Int)::Scores
@@ -96,8 +98,7 @@ function _abof(p::AbstractVector, idxs::AbstractVector, X::AbstractArray, k::Int
     # we know that there are binomial(k, 2) results for all two-neighbor combinations and can thus pre-allocate
     result = Vector{Float64}(undef, binomial(k, 2))
     for (i, (idx1, idx2)) in enumerate(combs)
-        neighbor1 = p .- X[:, idx1]
-        neighbor2 = p .- X[:, idx2]
+        neighbor1, neighbor2 = p .- X[:, idx1], p .- X[:, idx2]
         @inbounds result[i] = dot(neighbor1, neighbor2) / (norm(neighbor1)^2 * norm(neighbor2)^2)
     end
     # NaN means that at least one norm was zero, we use -1, because higher scores should describe outlierness
@@ -121,10 +122,8 @@ function _eabof(p::AbstractVector, idxs::AbstractVector, X::AbstractArray, k::In
     # we know that there are binomial(k, 2) results for all two-neighbor combinations and can thus pre-allocate
     result = Vector{Float64}(undef, binomial(k, 2))
     for (i, (idx1, idx2)) in enumerate(combs)
-        neighbor1 = p .- X[:, idx1]
-        neighbor2 = p .- X[:, idx2]
-        norm1 = norm(neighbor1)
-        norm2 = norm(neighbor2)
+        neighbor1, neighbor2 = p .- X[:, idx1], p .- X[:, idx2]
+        norm1, norm2 = norm(neighbor1), norm(neighbor2)
         @inbounds result[i] = (1 / (norm1 + norm2)) * (dot(neighbor1, neighbor2) / (norm1^2 * norm2^2))
     end
     # NaN means that at least one norm was zero, we use -1, because higher scores should describe outlierness

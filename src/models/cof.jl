@@ -26,7 +26,7 @@ Detections for Low Density Patterns.
 OD.@detector mutable struct COFDetector <: UnsupervisedDetector
     k::Integer = 5::(_ > 0)
     metric::DI.Metric = DI.Euclidean()
-    algorithm::Symbol = :kdtree::(_ in (:kdtree, :balltree))
+    algorithm::Symbol = :kdtree::(_ in (:kdtree, :balltree, :brutetree))
     static::Union{Bool,Symbol} = :auto::(_ in (true, false, :auto))
     leafsize::Integer = 10::(_ ≥ 0)
     reorder::Bool = true
@@ -42,18 +42,23 @@ struct COFModel <: DetectorModel
 end
 
 function OD.fit(detector::COFDetector, X::Data; verbosity)::Fit
-    X_prep = prepare_data(X, detector.static)
-
     # calculate pairwise distances in addition to building the tree;
     # TODO: we could remove this once NearestNeighbors.jl exports something like `allpairs`
-    pdists = DI.pairwise(detector.metric, X, dims=2)
+    pdists = DI.pairwise(detector.metric, X, dims = 2)
+
+    # Note: Fitting is different from pyOD, because we ignore the trivial nearest neighbor using knn_others as in
+    # all other nearest-neighbor-based algorithms
+    X = prepare_data(X, detector.static)
 
     # use tree to calculate distances
-    tree = @tree detector X_prep
+    tree = @tree detector X
 
-    # We need k + 1 neighbors to calculate the chaining distance and have to make sure the indices are sorted 
-    idxs, _ = knn_others(tree, X_prep, detector.k + 1)
-    acds = _calc_acds(idxs, pdists, detector.k)
+    # we need k + 1 neighbors to calculate the chaining distance and have to make sure the indices are sorted 
+    idxs, _ = detector.parallel ?
+              knn_parallel(tree, X, detector.k + 1, true) :
+              knn_sequential(tree, X, detector.k + 1, true)
+
+    acds = _acd(idxs, pdists, detector.k)
     scores = _cof(idxs, acds, detector.k)
     return COFModel(tree, pdists, acds), scores
 end
@@ -61,77 +66,46 @@ end
 function OD.transform(detector::COFDetector, model::COFModel, X::Data)::Scores
     X = prepare_data(X, detector.static)
 
-    if detector.parallel
-        idxs, _ = knn_parallel(model.tree, X, detector.k + 1, true)
-        return _cof(idxs, model.pdists, model.acds, detector.k)
-    else
-        idxs, _ = NN.knn(model.tree, X, detector.k + 1, true)
-        return _cof(idxs, model.pdists, model.acds, detector.k)
-    end
+    # Note: It's important to sort the neighbors, because _calc_acds depends on the order of the neighbors
+    idxs, _ = detector.parallel ?
+              knn_parallel(model.tree, X, detector.k + 1, false, true) :
+              knn_sequential(model.tree, X, detector.k + 1, false, true)
+
+    return _cof(idxs, model.pdists, model.acds, detector.k)
 end
 
-function _cof(idxs::AbstractVector{<:AbstractVector}, acds::AbstractVector, k:: Int)::Scores
+function _cof(idxs::AbstractVector{<:AbstractVector}, acds::AbstractVector, k::Int)::Scores
     # Calculate the connectivity-based outlier factor from given acds
     cof = Vector{Float64}(undef, length(idxs))
     for (i, idx) in enumerate(idxs)
-        @inbounds cof[i] = acds[i] * k / sum(acds[@view idx[2:end]])
+        @inbounds cof[i] = (acds[i] * k) / sum(acds[idx[2:end]])
     end
     cof
 end
 
-function _cof(idxs::AbstractVector{<:AbstractVector}, pdists::AbstractMatrix, acds:: AbstractVector, k::Int)::Scores
+function _cof(idxs::AbstractVector{<:AbstractVector}, pdists::AbstractMatrix, acds::AbstractVector, k::Int)::Scores
     # Calculate the connectivity-based outlier factor for test examples with given training distances and acds.
     cof = Vector{Float64}(undef, length(idxs))
-    acdsTest = _calc_acds(idxs, pdists, k)
+    acdsTest = _acd(idxs, pdists, k)
     for (i, idx) in enumerate(idxs)
-        @inbounds cof[i] = acdsTest[i] * k / sum(acds[@view idx[2:end]])
+        @inbounds cof[i] = (acdsTest[i] * k) / sum(acdsTest[idx[2:end]])
     end
     cof
 end
 
-function _calc_acds(idxs::AbstractVector{<:AbstractVector}, pdists::AbstractMatrix, k::Int)::AbstractVector
+function _acd(idxs::AbstractVector{<:AbstractVector}, pdists::AbstractMatrix, k::Int)::Vector{Float64}
+    # Initialize with zeros because we add to each entry
+    acds = zeros(Float64, length(idxs))
     kplus1 = k + 1
-    acds = zeros(length(idxs))
     for (i, idx) in enumerate(idxs)
         for j in 1:k
             # calculate the minimum distance (from all reachable points). That is, we sort the distances of a specific
             # point (given by idx[j+1]) according to the order of the current idx, where idx[1] specifies the idx of the
             # nearest neighbors and idx[k] specifies the idx of the k-th neighbor. We then restrict this so-called
             # set-based nearest path (SBN) to the points that are reachable with [begin:j]
-            cost = minimum(pdists[idx, idx[j + 1]][begin:j])
-            @inbounds acds[i] += ((2 * (kplus1 - j)) / (k * kplus1)) * cost
+            cost = minimum(pdists[idx, idx[j+1]][begin:j])
+            @inbounds acds[i] += ((2.0 * (kplus1 - j)) / (k * kplus1)) * cost
         end
     end
     acds
 end
-
-# """
-# _cof_unused(distances, k)
-# Unused version that does not rely on a pre-calculated tree, but is slower.
-# """
-# function _cof_unused(distances::AbstractMatrix, k:: Int)::AbstractVector
-#     # pre allocate arrays
-#     samples = size(distances, 2)
-#     acds = zeros(samples)
-#     cof = Vector{Float64}(undef, samples)
-#     sbns = Array{Int, 2}(undef, (k, samples))
-#     kplus1 = k + 1
-#     # calculate sbns and acds
-#     for i in 1:samples
-#         # calculate the set based nearest path (nearest neighbors of current)
-#         sbn_path = sortperm(distances[:, i], alg=PartialQuickSort(kplus1))[begin:kplus1]
-#         sbns[:, i] = sbn_path[2:end]
-#         for j in 1:k
-#             # calculate the minimum distance (from all reachable points)
-#             # e.g. point sbn_path[3] has two possible reachable points, sbn_path[1] and sbn_path[2]
-#             cost = minimum(distances[sbn_path, sbn_path[j + 1]][begin:j])
-#             acd = ((2 * (kplus1 - j)) / (k * kplus1)) * cost
-#             acds[i] += acd
-#         end
-#     end
-#     # calculate cof
-#     for i in 1:samples
-#         cof[i] = acds[i] * k / sum(acds[sbns[:, i]])
-#     end
-#     cof
-# end

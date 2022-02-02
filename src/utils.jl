@@ -32,56 +32,62 @@ Parallelize `score` and `predict` using all threads available. The number of thr
 # for some reason providing this as a function is massively slowing down compilation
 macro tree(detector, X)
     esc(quote
-        $detector.algorithm === :kdtree ?
-            NN.KDTree($X, $detector.metric; $detector.leafsize, $detector.reorder) :
+        if $detector.algorithm === :kdtree
+            NN.KDTree($X, $detector.metric; $detector.leafsize, $detector.reorder)
+        elseif $detector.algorithm === :balltree
             NN.BallTree($X, $detector.metric; $detector.leafsize, $detector.reorder)
+        elseif $detector.algorithm === :brutetree
+            # intentionally not propagating leafsize and reorder, because that may lead to problems
+            NN.BruteTree($X, $detector.metric)
+        end
     end)
 end
 
-function knn_parallel(tree::NN.NNTree, X::AbstractArray, k::Int,
-    sort::Bool = false)::Tuple{AbstractVector, AbstractVector}
+function knn_parallel(tree::NN.NNTree, X::AbstractVector{<:AbstractVector},
+    k::Int, ignore_self = false, sort::Bool = false)
     # pre-allocate the result arrays (as in NearestNeighbors.jl)
-    samples = size(X, 2)
-    dists = [Vector{NN.get_T(eltype(X))}(undef, k) for _ in 1:samples]
-    idxs = [Vector{Int}(undef, k) for _ in 1:samples]
+    indices = eachindex(X)
+    dists = [Vector{NN.get_T(eltype(X))}(undef, k) for _ in indices]
+    idxs = [Vector{Int}(undef, k) for _ in indices]
 
     # get number of threads
     nThreads = Threads.nthreads()
+
     # partition the input array equally
-    partition_size = samples ÷ nThreads + 1
-    partitions = Iterators.partition(axes(X, 2), partition_size)
+    n_samples = length(X)
+    divides_data = mod(n_samples, nThreads) == 0
+    partition_size = divides_data ? n_samples ÷ nThreads : n_samples ÷ nThreads + 1
+    partitions = Iterators.partition(indices, partition_size)
+
+    # create the knn function depending on whether we need to ignore self
+    knn_closure(tree, X, k, sort) = ignore_self ? _knn_others(tree, X, k) : NN.knn(tree, X, k, sort)
+
+    # parallel computation over the equal array splits
     Threads.@threads for idx = collect(partitions)
-        @inbounds idxs[idx], dists[idx] = NN.knn(tree, view(X, :, idx), k, sort)
+        @inbounds idxs[idx], dists[idx] = knn_closure(tree, X[idx], k, sort)
     end
     idxs, dists
 end
 
-function dnn_parallel(tree::NN.NNTree, X::AbstractArray, d::Real, sort::Bool = false)::AbstractVector
-    # pre-allocate the result arrays (as in NearestNeighbors.jl)
-    samples = size(X, 2)
-    scores = Vector{Float64}(undef, samples)
-
-    # get number of threads
-    nThreads = Threads.nthreads()
-    # partition the input array equally
-    partition_size = samples ÷ nThreads + 1
-    partitions = Iterators.partition(axes(X, 2), partition_size)
-    Threads.@threads for idx = collect(partitions)
-        @inbounds scores[idx] = dnn(NN.inrange(tree, view(X, :, idx), d, sort))
-    end
-    scores
+function knn_sequential(tree::NN.NNTree, X::AbstractVector{<:AbstractVector},
+    k::Int, ignore_self = false, sort::Bool = false)
+    ignore_self ? _knn_others(tree, X, k) : NN.knn(tree, X, k, sort)
 end
 
 # Calculate the k-nearest neighbors with ignoring the own point in the tree.
-function knn_others(tree::NN.NNTree, X::AbstractArray, k::Integer)::Tuple{AbstractVector, AbstractVector}
+function _knn_others(tree::NN.NNTree, X::AbstractVector, k::Integer)
     idxs, dists = NN.knn(tree, X, k + 1, true) # we ignore the distance to the 'self' point, important to sort!
     ignore_self = vecvec -> map(vec -> vec[2:end], vecvec)
     ignore_self(idxs), ignore_self(dists)
 end
 
 # The NN package automatically converts matrices to a vector of points (static vectors) for improved performance
-# this results in very bad performance for high-dimensional matrices (e.g. d > 100). 
-dynamic_view(X::Data) = [NN.SizedVector{length(v)}(v) for v in eachslice(X; dims=ndims(X))]
-auto_view(X::Data) = prod(size(X)[1:end-1]) > 100 ? dynamic_view(X) : X
-prepare_data(X::Data, static::Union{Bool, Symbol}) = static === :auto ? auto_view(X) :
-                                                     static === false ? dynamic_view(X) : X
+# this results in very bad performance for high-dimensional matrices (e.g. d > 100).
+dynamic_view(X::Data) = [NN.SizedVector{length(v)}(v) for v in eachslice(X; dims = ndims(X))]
+static_view(X::Data) = [NN.SVector{length(v)}(v) for v in eachslice(X; dims = ndims(X))]
+auto_view(X::Data) = prod(size(X)[1:end-1]) > 100 ? dynamic_view(X) : static_view(X)
+function prepare_data(X::Data, static::Union{Bool,Symbol})
+    @assert ndims(X) == 2 "k-NN currently only supports matrices."
+    return static === :auto ? auto_view(X) :
+           static ? static_view(X) : dynamic_view(X)
+end

@@ -34,7 +34,7 @@ Sets.
 OD.@detector mutable struct KNNDetector <: UnsupervisedDetector
     k::Integer = 5::(_ > 0)
     metric::DI.Metric = DI.Euclidean()
-    algorithm::Symbol = :kdtree::(_ in (:kdtree, :balltree))
+    algorithm::Symbol = :kdtree::(_ in (:kdtree, :balltree, :brutetree))
     static::Union{Bool,Symbol} = :auto::(_ in (true, false, :auto))
     leafsize::Integer = 10::(_ ≥ 0)
     reorder::Bool = true
@@ -53,7 +53,9 @@ function OD.fit(detector::KNNDetector, X::Data; verbosity)::Fit
     tree = @tree detector X
 
     # use tree to calculate distances
-    _, dists = knn_others(tree, X, detector.k)
+    _, dists = detector.parallel ?
+               knn_parallel(tree, X, detector.k, true) :
+               knn_sequential(tree, X, detector.k, true)
 
     # reduce distances to outlier score
     scores = _knn(dists, detector.reduction)
@@ -62,14 +64,10 @@ end
 
 function OD.transform(detector::KNNDetector, model::KNNModel, X::Data)::Scores
     X = prepare_data(X, detector.static)
-
-    if detector.parallel
-        idxs, dists = knn_parallel(model.tree, X, detector.k)
-        return _knn(dists, detector.reduction)
-    else
-        idxs, dists = NN.knn(model.tree, X, detector.k)
-        return _knn(dists, detector.reduction)
-    end
+    _, dists = detector.parallel ?
+               knn_parallel(model.tree, X, detector.k) :
+               knn_sequential(model.tree, X, detector.k)
+    return _knn(dists, detector.reduction)
 end
 
 @inline function _knn(distances::AbstractVector{<:AbstractVector}, reduction::Symbol)::Scores

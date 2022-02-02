@@ -29,7 +29,7 @@ Outliers.
 OD.@detector mutable struct LOFDetector <: UnsupervisedDetector
     k::Integer = 5::(_ > 0)
     metric::DI.Metric = DI.Euclidean()
-    algorithm::Symbol = :kdtree::(_ in (:kdtree, :balltree))
+    algorithm::Symbol = :kdtree::(_ in (:kdtree, :balltree, :brutetree))
     static::Union{Bool,Symbol} = :auto::(_ in (true, false, :auto))
     leafsize::Integer = 10::(_ ≥ 0)
     reorder::Bool = true
@@ -51,7 +51,9 @@ function OD.fit(detector::LOFDetector, X::Data; verbosity)::Fit
     tree = @tree detector X
 
     # use tree to calculate distances
-    idxs, dists = knn_others(tree, X, detector.k)
+    idxs, dists = detector.parallel ?
+                  knn_parallel(tree, X, detector.k, true) :
+                  knn_sequential(tree, X, detector.k, true)
 
     # transform dists (vec of vec) to matrix to allow faster indexing later
     ndists = reduce(hcat, dists)
@@ -67,16 +69,13 @@ end
 
 function OD.transform(detector::LOFDetector, model::LOFModel, X::Data)::Scores
     X = prepare_data(X, detector.static)
-    if detector.parallel
-        idxs, dists = knn_parallel(model.tree, X, detector.k, true)
-        return _lof(idxs, dists, model.ndists, model.lrds, detector.k)
-    else
-        idxs, dists = NN.knn(model.tree, X, detector.k, true)
-        return _lof(idxs, dists, model.ndists, model.lrds, detector.k)
-    end
+    idxs, dists = detector.parallel ?
+                  knn_parallel(model.tree, X, detector.k, false, true) :
+                  knn_sequential(model.tree, X, detector.k, false, true)
+    return _lof(idxs, dists, model.ndists, model.lrds, detector.k)
 end
 
-function _lof(idxs:: AbstractVector, dists::AbstractVector, model_dists::AbstractArray,
+function _lof(idxs::AbstractVector, dists::AbstractVector, model_dists::AbstractArray,
     model_lrds::AbstractVector, k::Int)::Scores
     lrds = _calculate_lrd(idxs, dists, model_dists, k)
     # calculate the local outlier factor from the lrds
@@ -94,7 +93,7 @@ function _calculate_lrd(idxs::AbstractVector, dists::AbstractVector, ndists::Abs
     map((is, ds) -> 1 / (mean(_max!(ndists[k, is], ds)) + 1e-10), idxs, dists)
 end
 
-function _max!(ar1:: AbstractVector, ar2:: AbstractVector)::AbstractVector
+function _max!(ar1::AbstractVector, ar2::AbstractVector)::AbstractVector
     # Calculate the element wise maximum between two vectors.
     for i in eachindex(ar1)
         @inbounds ar1[i] = ar1[i] > ar2[i] ? ar1[i] : ar2[i]
