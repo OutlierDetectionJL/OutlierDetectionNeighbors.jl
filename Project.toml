@@ -1,7 +1,7 @@
 name = "OutlierDetectionNeighbors"
 uuid = "51249a0a-cb36-4849-8e04-30c7f8d311bb"
 authors = ["David Muhr <muhrdavid@gmail.com> and contributors"]
-version = "0.1.4"
+version = "0.1.3"
 
 [deps]
 Combinatorics = "861a8166-3701-5b0c-9a16-15d98fcdc6aa"
