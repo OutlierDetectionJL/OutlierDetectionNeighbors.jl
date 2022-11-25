@@ -2,42 +2,6 @@ using Combinatorics: combinations
 using LinearAlgebra: dot, norm
 using Statistics: var
 
-"""
-    ABODDetector(k = 5,
-                 metric = Euclidean(),
-                 algorithm = :kdtree,
-                 static = :auto,
-                 leafsize = 10,
-                 reorder = true,
-                 parallel = false,
-                 enhanced = false)
-
-Determine outliers based on the angles to its nearest neighbors. This implements the `FastABOD` variant described in
-the paper, that is, it uses the variance of angles to its nearest neighbors, not to the whole dataset, see [1]. 
-
-*Notice:* The scores are inverted, to conform to our notion that higher scores describe higher outlierness.
-
-Parameters
-----------
-$K_PARAM
-
-$KNN_PARAMS
-
-    enhanced::Bool
-When `enhanced=true`, it uses the enhanced ABOD (EABOD) adaptation proposed by [2].
-
-Examples
---------
-$(SCORE_UNSUPERVISED("ABODDetector"))
-
-References
-----------
-[1] Kriegel, Hans-Peter; S hubert, Matthias; Zimek, Arthur (2008): Angle-based outlier detection in high-dimensional
-data.
-
-[2] Li, Xiaojie; Lv, Jian Cheng; Cheng, Dongdong (2015): Angle-Based Outlier Detection Algorithm with More Stable
-Relationships.
-"""
 OD.@detector mutable struct ABODDetector <: UnsupervisedDetector
     # Note: the minimum k is 3. The 2 nearest neighbors yields one angle, which implies zero variance everywhere.
     k::Integer = 5::(_ > 2)
