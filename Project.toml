@@ -16,7 +16,7 @@ Combinatorics = "1.0"
 Distances = "0.10"
 NearestNeighbors = "<0.4.14"
 OutlierDetectionInterface = "0.1, 0.2"
-julia = "1"
+julia = "1.6 - 1"
 
 [extras]
 OutlierDetectionTest = "66620973-d34b-445b-a614-4040704cad69"
