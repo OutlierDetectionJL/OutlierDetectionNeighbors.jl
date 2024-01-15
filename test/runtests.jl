@@ -1,6 +1,20 @@
 using OutlierDetectionNeighbors
 using OutlierDetectionTest
 using Distances: Cityblock
+using MLJTestInterface
+using Test
+
+@testset "generic MLJ interface tests" begin
+    X = MLJTestInterface.make_regression() |> first
+    failures, summary = MLJTestInterface.test(
+        eval.(OutlierDetectionNeighbors.MODELS),
+        X;
+        mod=@__MODULE__,
+        verbosity=0, # bump to debug
+        throw=false, # set to true to debug
+    )
+    @test isempty(failures)
+end
 
 # Test the metadata of all exported detectors
 test_meta.(eval.(OutlierDetectionNeighbors.MODELS))
