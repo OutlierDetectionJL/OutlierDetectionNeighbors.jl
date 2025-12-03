@@ -6,6 +6,9 @@ module OutlierDetectionNeighbors
     import NearestNeighbors
     const NN = NearestNeighbors
 
+    import StaticArrays
+    const SA = StaticArrays
+
     import Distances
     const DI = Distances
 

@@ -83,8 +83,8 @@ end
 
 # The NN package automatically converts matrices to a vector of points (static vectors) for improved performance
 # this results in very bad performance for high-dimensional matrices (e.g. d > 100).
-dynamic_view(X::Data) = [NN.SizedVector{length(v)}(v) for v in eachslice(X; dims = ndims(X))]
-static_view(X::Data) = [NN.SVector{length(v)}(v) for v in eachslice(X; dims = ndims(X))]
+dynamic_view(X::Data) = [SA.SizedVector{length(v)}(v) for v in eachslice(X; dims = ndims(X))]
+static_view(X::Data) = [SA.SVector{length(v)}(v) for v in eachslice(X; dims = ndims(X))]
 auto_view(X::Data) = prod(size(X)[1:end-1]) > 100 ? dynamic_view(X) : static_view(X)
 function prepare_data(X::Data, static::Union{Bool,Symbol})
     @assert ndims(X) == 2 "k-NN currently only supports matrices."
